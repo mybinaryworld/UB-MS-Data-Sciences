@@ -1,0 +1,455 @@
+---
+title: "Statistical Data Mining I  \n Homework1"
+author: "Abhishek Kumar"
+date: "September 14, 2018"
+output: 
+  pdf_document: 
+    fig_caption: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+setwd('/Users/abhishekkumar/Documents/MS_UB/Fall_18/ESL506_StatisticalDataMiningI/HW1/')
+library(ggplot2)
+library(gridExtra)
+library(corrplot)
+```
+##Solution 1
+The Student Performance Data Set is a highly researched open-source dataset in the education sector. This data set was put together by collecting data about grades from two portuguese schools and complementing it with survey from students. The motivation is use the available data to make better decisions about changes to improve student performance. Here we will explore the data and try to find parameters/predictors that may effect student grades.\newline
+```{r}
+d1=read.table("student/student-mat.csv",sep=";",header=TRUE)
+d2=read.table("student/student-por.csv",sep=";",header=TRUE)
+d3_all = merge(d1,d2, all = TRUE)
+```
+
+We have two datasets 'd1' and 'd2' for Mathematics and Portuguese respectively. To start, first we merge the two datasets into one to get a dataframe with 382x53. All of the variables we have are factor variables except absences which range from 0-93. Our target variable is G1, the first period grade.
+```{r include=FALSE}
+d3=merge(d1,d2,by=c("school","sex","age","address","famsize","Pstatus","Medu","Fedu",
+                    "Mjob","Fjob","reason","nursery","internet"))
+```
+####Let's look at some distribution of the first period grade.
+
+```{r fig.height=2.5, fig.align='center', fig.cap=NULL}
+hist_math <- ggplot(d3, aes(x = G1.x))+ geom_histogram(aes(colour = as.factor(d3$sex)), binwidth = 1) + labs(x = "First period grade for Maths", y = "Count")
+
+hist_por <- ggplot(d3, aes(x = G1.y))+ geom_histogram(aes(colour = as.factor(d3$sex)), binwidth = 1) + labs(x = "First period grade for Maths", y = "Count")
+
+grid.arrange(hist_math, hist_por, ncol = 2, bottom = NULL)
+```
+
+
+```{r fig.height=2.5, fig.align='center'}
+den_sexm <- ggplot(d3, aes(x = G1.x, fill = sex))+ geom_density(alpha=0.5) + labs(x = "First period grade for Maths", y = " Density")
+
+den_sexp <- ggplot(d3, aes(x = G1.y, fill = sex))+ geom_density(alpha=0.5)  + labs(x = "First period grade for Portuguese", y = " Density")
+
+grid.arrange(den_sexm, den_sexp, ncol = 2, bottom = NULL)
+```
+\newpage
+
+After analysis and exploration, I found some important inferences from the plots. From the histogram and density plot above it is evident that the male population performed better in maths while females did perform better in Portuguese. Other predictors such as schoolsup, sex(male), Medu(higher education),  Mjob(health) and Fjob(teacher) positively affected the first period grades for maths while failures and familysize(>3) negatively affected it. As these are factor variables, it will be easy to visualize using boxplot. Let's look at some of those.\newline
+
+&nbsp;
+
+```{r echo=FALSE, fig.height=2.5, fig.align='center'}
+schoolsup_x <- ggplot(d3, aes(x = as.factor(schoolsup.x), y = G1.x))+ geom_boxplot(aes(colour = as.factor(schoolsup.x))) + labs(x = "Extra education support", y = "First Period Grades in Maths")
+
+higher_x <- ggplot(d3, aes(x = as.factor(higher.x), y = G1.x))+ geom_boxplot(aes(color = as.factor(higher.x)))+ labs(x = "Wants to take higher education", y = NULL)
+
+grid.arrange(schoolsup_x, higher_x, ncol=2, bottom=NULL)
+```
+```{r echo=FALSE, fig.align='center', fig.height=2.5}
+sex_x <- ggplot(d3, aes(x = sex, y = G1.x))+ geom_boxplot(aes(colour = as.factor(sex)))+ labs( x = "Sex", y = "Grades in Math")
+
+medu_x <- ggplot(d3, aes(x = Medu, y = G1.x))+ geom_boxplot(aes(colour = as.factor(Medu)),alpha = 0.5)+ labs( x = "Mother's education", y = NULL)
+
+
+
+grid.arrange(sex_x, medu_x, ncol=2, bottom=NULL)
+
+```
+
+&nbsp;
+
+```{r fig.height=2.5, fig.align='center'}
+d3$Mjob <- factor(d3$Mjob,levels = c('at_home','other','services','teacher','health'),ordered = TRUE)
+mjob_x <- ggplot(d3, aes(x = Mjob, y = G1.x))+ geom_boxplot(aes(colour = as.factor(Mjob)),alpha = 0.5)+ labs( x = "Mother's job", y = "Grades in Math")
+
+d3$Fjob <- factor(d3$Fjob,levels = c('at_home','other','services','teacher','health'),ordered = TRUE)
+fjob_x <- ggplot(d3, aes(x = Fjob, y = G1.x))+ geom_boxplot(aes(colour = as.factor(Fjob)),alpha = 0.5)+ labs( x = "Father's job", y = NULL)
+
+grid.arrange(mjob_x, fjob_x, ncol=2, bottom=NULL)
+```
+
+&nbsp;
+
+&nbsp;
+
+```{r fig.height=2.5, fig.align='center'}
+failures_x <- ggplot(d3, aes(x = as.factor(failures.x), y = G1.x))+ geom_boxplot(aes(colour = as.factor(failures.x))) + labs(x = "No. of past failures", y = "First Period Grades in Maths")
+
+famsize_x <- ggplot(d3, aes(x =famsize, y = G1.x))+ geom_boxplot(aes(colour = as.factor(famsize)),alpha = 0.5) + labs(x = "Family", y = NULL)
+
+grid.arrange(failures_x, famsize_x, ncol=2, bottom=NULL)
+```
+
+&nbsp;
+
+####While for Portuguese, parameters like failures, higher, Mjob, Medu, schoolsup were major factors that affected students grades.
+
+&nbsp;
+
+```{r echo=FALSE, fig.height=2.5, fig.align='center'}
+failures_y <- ggplot(d3, aes(x = as.factor(failures.y), y = G1.y))+ geom_boxplot() + labs(x = "No. of past failures", y = "First Period Grades in Maths")
+
+higher_y <- ggplot(d3, aes(x = as.factor(higher.y), y = G1.y))+ geom_boxplot(aes(as.factor(higher.y)))+ labs(x = "Wants to take higher education", y = NULL)
+
+grid.arrange(failures_y, higher_y, ncol=2, bottom=NULL)
+```
+
+&nbsp;
+
+```{r fig.height=2.5, fig.align='center'}
+d3$Mjob <- factor(d3$Mjob,levels = c('at_home','other','services','teacher','health'),ordered = TRUE)
+mjob_y <- ggplot(d3, aes(x = Mjob, y = G1.y))+ geom_boxplot(aes(colour = as.factor(Mjob)),alpha = 0.5)+ labs( x = "Mother's job", y = "Grades in Math")
+
+medu_y <- ggplot(d3, aes(x = Medu, y = G1.y))+ geom_boxplot(aes(colour = as.factor(Medu)),alpha = 0.5)+ labs( x = "Mother's education", y = NULL)
+
+
+grid.arrange(mjob_y, medu_y, ncol=2, bottom=NULL)
+```
+
+&nbsp;
+
+```{r fig.height=2.5, fig.align='center'}
+schoolsup_y <- ggplot(d3, aes(x = as.factor(schoolsup.y), y = G1.y))+ geom_boxplot() + labs(x = "Extra education support", y = "First Period Grades in Maths")
+
+grid.arrange( schoolsup_y, ncol=2, bottom=NULL)
+```
+
+&nbsp;
+
+I also stumbled upon situations where the target variable, the first period grade seemed completely independent of some variables. Like internet, health and nursery that does not seem to affect students performance in either Maths or Portuguese. Even if they vary slightly, there doesn't seem to be a pattern. Its likely some noise. So, to may want to delete these variables from our training data. Let's look at these variables.\newline
+
+```{r fig.height=2, fig.align='center'}
+nursery_hist <- ggplot(d3, aes(x = d3$nursery))+ geom_histogram(stat = "count")+ labs(x = "Attended Nursery", y = "Count")
+nursery_bpx <- ggplot(d3, aes(x = as.factor(nursery), y = G1.x))+ geom_boxplot()+ labs(x = "Attended Nursery", y = "First Period Grades in Maths")
+nursery_bpy <- ggplot(d3, aes(x = as.factor(nursery), y = G1.y))+ geom_boxplot()+ labs(x = "Attended Nursery", y = "First Period Grades in Portuguese")
+
+grid.arrange(nursery_hist, nursery_bpx, nursery_bpy, ncol=3)
+```
+
+```{r fig.height=2, fig.align='center'}
+
+health_bpx <- ggplot(d3, aes(x = as.factor(health.x), y = G1.x))+ geom_boxplot()+ labs(x = "Health(Bad to Good)", y = "First Period Grades in Maths")
+health_bpy <- ggplot(d3, aes(x = as.factor(health.y), y = G1.y))+ geom_boxplot()+ labs(x = "Health(Bad to Good)", y = "First Period Grades in Portuguese")
+
+grid.arrange(health_bpx, health_bpy, ncol=2)
+```
+
+
+```{r fig.height=2, fig.align='center'}
+
+internet_bpx <- ggplot(d3, aes(x = as.factor(internet), y = G1.x))+ geom_boxplot()+ labs(x = "Attended Nursery", y = "First Period Grades in Maths")
+internet_bpy <- ggplot(d3, aes(x = as.factor(internet), y = G1.y))+ geom_boxplot()+ labs(x = "Attended Nursery", y = "First Period Grades in Portuguese")
+
+grid.arrange(internet_bpx, internet_bpy, ncol=2)
+```
+
+
+####Outliers
+If we look at the stem-leaf plot for age, we find that there is just one student with ages 20 and 22 and their grades in Maths and Portuguese are also in the oulines. Due to lack of more data in the same age group, I feel it may influence my model but grades for these age group conforms to my imagination and I would like to keep these outliers in my training data. I feel that as students with age 20 and 22 are quite older with respect to the average population of the class they may find it difficult to interact, discuss and collaborate with their fellow mates which would influence their grades. Also when I individually see these two students, I find the the one with age 20 had no absences, no failures in Maths, wanted to pursue higher education, was non-alcoholic, having good qualities of a student. While the other with age 22 was alcoholic with poor health, frequently outgoing, had previous failures in both the subjects and had more than average number of absences. Hence, I'll be keeping them in my training dataset.
+
+```{r fig.height=2, fig.align='center'}
+stem(d3$age)
+```
+
+```{r, fig.height=2.5, fig.align='center'}
+scatter_AgeVsG1x <- ggplot(aes(x = age, y = G1.x), data = d3) + geom_point() + labs(x = "Age", y = "First period grade in Maths")
+
+scatter_AgeVsG1y <- ggplot(aes(x = age, y = G1.y), data = d3) + geom_point()+ labs(x = "Age", y = "First period grade in Portuguese")
+
+grid.arrange(scatter_AgeVsG1x, scatter_AgeVsG1y, ncol=2, bottom=NULL)
+```
+
+
+####Finally,I would go ahead with deleting the non-influential factors(internet, nursery, health) and delete G2 and G3 as well to create a controlled dataset and use it to train my model and verify the performance by comparing its Mean-Squared Error with the original dataset which contains every variables except G2 and G3.
+
+
+```{r include=FALSE}
+##########################################
+#Preparing Final Data for Model
+##########################################
+d3_all <- merge(d1, d2, all = TRUE)
+d3_originalData <- d3_all[-c(32,33)]
+d3_controlled <- d3_all[-c(20,22,29,32,33)]
+save(d3_controlled, file = "controlled.Rda")
+```
+
+
+###Additional Inferences : 
+####1)
+
+We made a new subset of students who have failed earlier and made a box plot to see the
+performance of the students who took schoolsup Vs those who didn't. We found that among most of the students who have failed earlier and didn't take school support did better than those who did.\newline
+```{r echo=TRUE, fig.height=2.5, fig.align='center', fig.width=4}
+failed_stud.x <- subset(d3_controlled, failures>0) 
+ggplot(failed_stud.x, aes(x = as.factor(schoolsup), y = G1))+ geom_boxplot()
+by(failed_stud.x$G1, failed_stud.x$schoolsup, summary) #check median
+```
+
+####2)Finding einsteins !! Most of their parents are either both teachers or one of them is.
+```{r}
+einsteins.x <- subset(d3_controlled, studytime<=2)
+einsteins.x <- subset(einsteins.x, G1>=18)
+einsteins.x[c(9,10,16,28)]
+```
+
+\newpage
+
+##Solution 2
+###a)
+First let's check the Multiple R-squared of the model with the original data but excluding G2 and G3. The Multiple R-squared error is 0.2973 and accuracy is 0.5452. The major predictors in increasing order is failures(-), schoolsupyes(-), higheryes(+), studytime(+) and paidyes(-).\newline
+
+For the controlled model we get a Multiple R-squared of 0.2945, almost what we got with the original data and the accuracy is almost equal, 0.5427. This also confirms that the variables removed were not important predictors. And the influencial factors we get with the controlled data are failures(-), schoolsupyes(-), higheryes(+), studytime(+), paidyes(-), SchoolMS(-), Fjobteacher(+), famsupyes(-) and famsizeLE3(+).
+
+```{r echo=FALSE}
+########################################
+#Calculating accuracy for original data
+########################################
+model_originalData <- lm(G1 ~ ., data = d3_originalData)
+predicted_grades_origData <- predict(model_originalData, d3_originalData)
+actuals_preds_origData <- data.frame(cbind(actual_grade_orig=d3_originalData$G1, predicted_grade_orig=predicted_grades_origData))
+cor(actuals_preds_origData)
+
+########################################
+#Calculating accuracy for controlled data
+########################################
+model_controlledData <- lm(G1 ~ ., data = d3_controlled)
+predicted_grades_controlled <- predict(model_controlledData, d3_controlled)
+actuals_preds_controlled <- data.frame(cbind(actual_grade_cont=d3_controlled$G1, predicted_grade_cont=predicted_grades_controlled))
+cor(actuals_preds_controlled)
+```
+
+
+
+###b)
+From the summary of the model we can see the direction of coefficients and decide if the influencial predictors are positive or negative. 
+If I were to recommend a first year student to achieve a good grades would be:
+ i) Work hard and try to get into a better school. Always set your ambitions high. Even if you don't have money to take up extra educational support from school or family, don't worry! My data suggests its not always good for your good grades. Sometimes you have a learn to self-learn. It'll make you independent in the long run.\newline
+ 
+ Good Luck!!\newline
+ 
+###c)
+After trying most of the possible interaction, the best model was with "Mjob", where the Multiple R-squared is 0.4293 and the accuracy improved from 0.5427 to 0.5919.
+
+```{r include=FALSE}
+model_Mjob_inter <- lm(G1~ .:Mjob,data=d3_controlled)
+summary(model_Mjob_inter)
+model_Mjob_inter_grades_controlled <- predict(model_Mjob_inter, d3_controlled)
+model_Mjob_inter_actuals_preds_controlled <- data.frame(cbind(actual_grade_cont=d3_controlled$G1, predicted_grade_cont=model_Mjob_inter_grades_controlled))
+cor(model_Mjob_inter_actuals_preds_controlled)
+
+star_inter <- lm(G1~ .*higher,data=d3_controlled)
+summary(star_inter)
+```
+
+
+
+
+
+
+
+
+\newpage
+
+##Solution 3
+Let's start with the first step to analyze the dataset, the famous Boston Housing Dataset with just checking its head and summary. It has 14 variables and our target variable is "medv", which is  the median value of owner-occupied homes in $1000s.
+The variables are numerical and not factor variables and their range also varies so we need to normalize them before feeding into our model.
+
+###Exploring data
+```{r cars, include=FALSE}
+library(MASS)
+data(Boston)
+head(Boston)
+#summary(Boston)
+```
+Let's check the correlation of our target variable with other variables. I'll be plotting a correlation intensity plot. Here we can see that for our target variable median prices of the houses are positively correleted with number of rooms per dwelling(rm, cor = 0.69) and negatively correlated with the lower status of the population (lstat, cor = -0.74). There are other variables like proportion of non-retail business acres per town (indus, cor = -0.48), pupil-teacher ratio (ptratio, cor = -0.51), full-value property-tax rate per $10,000 (tax, cor = -0.47) and nitrogen oxides concentration (nox, cor = -0.42) that are correlated with the mean prices of house. 
+
+```{r echo=FALSE,fig.align="center",fig.cap=paste("Correlation Matrix Intensity"), fig.height=4, fig.width=4, fig.pos='h'}
+plot.new()
+corrplot(cor(Boston), type = "lower", order = "original", tl.col = "black", tl.srt = 45)
+```
+
+
+We can also draw some clear outliers for the plot. The charles river dummy variable (chas) has almost no correlation with house prices or any other variables, so we may want to eliminate it from our data. Next, we can observe that 'nox' and 'indus' one of the possible major factors are highly correleted (cor = 0.76), so we may want to use just one of them in our training data. 
+
+
+
+###a)
+Now, lets visualize how each variables are associated with other variables using a pairwise scatterplot. We have removed 'nox' and 'chas' from this plot to focus on other important variables. 
+With this scatterplot we can infer some interesting relationships.\newline
+  i) medv VS lstat: We can see the inverse relation between the two\newline
+  ii) medv VS rm: Positive linear relation between these; as expected
+
+&nbsp;
+```{r echo=FALSE, fig.align='center', fig.height=10, fig.width= 10, fig.cap="Pairwise Scatterplot", fig.pos="h"}
+pairs(Boston[,c(1,2,3,6,7,8,9,10,11,12,13,14)], col = "#950714")
+```
+
+
+
+
+  
+
+###b)
+Yes, if we look at the correlation-matrix intensity plot we find that the index of accessibility to radial highways (rad, cor = 0.63) and full-value property-tax rate (tax, cor = 0.58) are highly related to the per-capita crime rate. Also "rm" and "lstat" are inversely related.
+&nbsp;
+
+###c) To get an idea of these distribution, lets look at some plots.
+There are few suburbs with high crime rates ranging upto 89%. But most suburbs have less than 1% per capita crime rates. When we look at the histogram for tax rates we see that 132 suburbs have tax of ~$670 per $10,000 and in some suburbs tax rate is as high as $710. We can also notice that there is no suburb whose property-tax is between $470-$670. In general the tax-rates among suburbs range between $190-$710. And the pupil-teacher ratio varies between 12.6-22.0 while most suburbs have pupil-teacher ratio of 20.2
+\newline
+
+####Summary of crim, tax, ptratio.
+```{r echo=FALSE}
+summary(Boston[c('crim', 'tax', 'ptratio')])
+```
+
+&nbsp;
+
+```{r echo=FALSE, fig.align='center',fig.cap="per capita crime-rate", fig.height=2.5, fig.pos="h"}
+#stem(subset(Boston,crim>0)$crim)
+library(ggplot2)
+ggplot(data = Boston, aes(x=crim))+ geom_histogram(bins = 100)+ scale_x_continuous(breaks = seq(0, 90, 5))
+```
+
+```{r echo=FALSE, fig.align='center', fig.cap="tax rates", fig.height=2.5, fig.pos="h"}
+library(ggplot2)
+ggplot(data = Boston, aes(x=tax))+ geom_histogram(bins = 100)+ scale_x_continuous(breaks = seq(185, 720, 50))+ scale_y_continuous(breaks = seq(0, 150, 10))
+```
+
+```{r echo=FALSE, fig.align='center', fig.cap="pupil-teacher ratio", fig.pos="h", fig.height=2.5}
+ggplot(data = Boston, aes(x=ptratio))+ geom_histogram(bins = 100)+ scale_x_continuous(breaks = seq(12, 22, 1))+ scale_y_continuous(breaks = seq(0, 150, 10))
+```
+
+
+\newpage
+
+###d)
+There are 333 suburbs with average more than 6 rooms per dwelling, 64 with more than 7 rooms per dwelling and 13 suburbs with more than 8 rooms per dwellings. For suburbs with more than 8 rooms per dwelling we can infer from the graphs below that they mostly costly and age over 60 years. Also the tax rates and crime rates are below the average.
+
+```{r echo=TRUE}
+nrow(subset(Boston, Boston$rm>6))
+nrow(subset(Boston, Boston$rm>7))
+nrow(subset(Boston, Boston$rm>8))
+```
+
+```{r fig.height=2.4, fig.align='center'}
+subLT8 <- subset(Boston, rm>8)
+a <- ggplot(data = subLT8, aes(x=medv, y = age))+ geom_point(aes(alpha = 0.3))
+b <- ggplot(data = subLT8, aes(x=tax, y = crim))+ geom_point(aes(alpha = 0.3))
+grid.arrange(a ,b, ncol =2)
+```
+
+##Solution 4.
+
+The zipcode data is the image of digits from 0-9, each image of size 16x16 pixels and our dataset contains has one row with 256 pixels of an image and one column, the first one the classification of the image from 0-9. Here we have been asked to train our model to classify just two digits 2 and 3. So, the first step would be select the rows whose 1st rows has either 2's or 3's. Then change 2's to 0 and 3's to 1 for better classification when using linear model.
+
+```{r include=FALSE}
+library(ElemStatLearn)
+zipcode_train <- as.data.frame(zip.train)
+zipcode_test <- as.data.frame(zip.test)
+head(zipcode_train)
+summary(zipcode_train)
+head(zipcode_test)
+summary(zipcode_test)
+```
+
+```{r}
+zipcode_train_working <- subset(zipcode_train, V1==2 | V1 == 3)
+zipcode_test_working <- subset(zipcode_test, V1==2 | V1 == 3)
+
+```
+
+####Let's look at some of the data to get a feel.
+```{r fig.align='center', fig.height=6, fig.width=6, include=FALSE}
+im <- matrix(as.numeric(zipcode_train_working[4,2:257]), nrow = 16, ncol = 16)
+x1 <- image(t(apply(-im,1,rev)),col=gray((0:32)/32))
+
+im <- matrix(as.numeric(zipcode_train_working[1,2:257]), nrow = 16, ncol = 16)
+x2 <- image(t(apply(-im,1,rev)),col=gray((0:32)/32))
+
+im <- matrix(as.numeric(zipcode_train_working[6,2:257]), nrow = 16, ncol = 16)
+x3 <- image(t(apply(-im,1,rev)),col=gray((0:32)/32))
+
+im <- matrix(as.numeric(zipcode_train_working[56,2:257]), nrow = 16, ncol = 16)
+x4 <- image(t(apply(-im,1,rev)),col=gray((0:32)/32))
+
+im <- matrix(as.numeric(zipcode_train_working[38,2:257]), nrow = 16, ncol = 16)
+x5 <- image(t(apply(-im,1,rev)),col=gray((0:32)/32))
+
+im <- matrix(as.numeric(zipcode_train_working[46,2:257]), nrow = 16, ncol = 16)
+x6 <- image(t(apply(-im,1,rev)),col=gray((0:32)/32))
+
+```
+
+
+###KNN Implementation
+
+```{r}
+require(class)
+zipcode_train_working[, 1] <- as.factor(zipcode_train_working[, 1])
+zipcode_test_working[, 1] <- as.factor(zipcode_test_working[, 1])
+knnplot <- function(train, test, kk){
+  knn_training <- knn(train, train, train$V1, kk, l=0, prob = FALSE, use.all = TRUE)
+	knn_testing <- knn(train, test, train$V1, kk, l=0, prob = FALSE, use.all = TRUE)
+	training_error <-  1 - sum(knn_training==train$V1)/nrow(train)
+	testing_error <- 1 - sum(knn_testing==test$V1)/nrow(test)
+	tmperror <- data.frame(k = c(kk), train = c(training_error), test = c(testing_error))
+	 return(tmperror)
+}
+klist <- list(1,3,5,7,9,11,13,15)
+
+error <- data.frame(k=c(), train = c(), test = c())
+for (i in klist){
+	tmperror <- knnplot(zipcode_train_working, zipcode_test_working, as.numeric(i))
+	error <- rbind(error, tmperror)
+}
+
+g <- ggplot(error, aes(error$k))
+g <- g + geom_line(aes(y=error$train), colour="red")
+g <- g + geom_line(aes(y=error$test), colour="green")
+g+ labs(x= "K", y = "Prediction Error") + scale_x_continuous(breaks = seq(1,15,2))+scale_y_continuous(breaks = seq(0, 0.04, 0.005))
+```
+
+###Linear Model Implementation
+
+The training error is 0.005760 and the testing error is 0.0412. Its highly accurate as it is a binary classification with lots of training data but I am very sure that if we use the same model to classify all the 10 digits the performance will degrade.
+
+```{r}
+zipcode_train_working <- subset(zipcode_train, V1==2 | V1 == 3)
+zipcode_test_working <- subset(zipcode_test, V1==2 | V1 == 3)
+linear_model <- lm(V1 ~ ., data = zipcode_train_working)
+
+##############################
+# Calculating Training Error
+##############################
+linear_training_pred <- predict(linear_model, zipcode_train_working)
+linear_training_pred <- round(linear_training_pred, digits =0)
+linear_training_frame <- data.frame(cbind(actual_digits=zipcode_train_working$V1, predicted_digits=linear_training_pred))
+linear_training_error <- 1 - sum(linear_training_frame$actual_digits == linear_training_frame$predicted_digits)/nrow(zipcode_train_working)
+
+##############################
+# Calculating Testing Error
+##############################
+linear_testing_pred <- predict(linear_model, zipcode_test_working)
+linear_testing_pred <- round(linear_testing_pred, digits =0)
+linear_testing_frame <- data.frame(cbind(actual_digits=zipcode_test_working$V1, predicted_digits=linear_testing_pred))
+linear_testing_error <- 1 - sum(linear_testing_frame$actual_digits == linear_testing_frame$predicted_digits)/nrow(zipcode_test_working)
+
+```
+
+In case of KNN the minimum error is at k=3,5 and 7 almost ~3.02% while in the linear model our error is ~4.12%. KNN is working better here!!
+
+
+

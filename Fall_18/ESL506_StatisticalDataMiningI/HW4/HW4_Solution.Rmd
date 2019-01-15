@@ -1,0 +1,403 @@
+---
+title: "EAS596, Homework_4"
+author: "Abhishek Kumar, Class#1"
+date: "26/11/2018"
+output:
+  pdf_document: 
+    fig_caption: yes
+    keep_tex: yes
+  word_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+rm(list = ls())
+library("ElemStatLearn")
+library("leaps")
+require(boot)
+library(MASS)
+library(bootstrap)
+library(boot) 
+setwd("/Users/abhishekkumar/Documents/MS_UB/Fall_18/ESL506_StatisticalDataMiningI/HW4")
+```
+
+
+##SOLUTION 1
+```{r}
+data("prostate", package = "ElemStatLearn")
+prostateData <- prostate[,-10] #97 x 10
+str(prostate)
+
+
+#PERFORMING BEST SUBSET SELECTION
+regfit.best <- regsubsets(lpsa ~ ., data = prostateData, nvmax = 9, method = "exhaustive")
+best_sum <- summary(regfit.best)
+cat("Minimum Classification Error while using Cp is at k = ",which(best_sum$cp == min(best_sum$cp)))
+cat("Minimum Classification Error while using BIC is at k = ",which(best_sum$bic == min(best_sum$bic)))
+
+cat("\n")
+cat("\n")
+
+#PLOTTING THE AIC AND BIC ERROR
+plot(best_sum$cp, type = "o", lty = 2, col = "blue" , xlab = "k", ylab = "error", main = "AIC error for different models")
+plot(best_sum$bic, type = "o", lty = 1, col = "green", xlab = "k", ylab = "error", main = "BIC error for different models")
+
+```
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+##COMPUTING 5 AND 10 FOLD CROSS VALIDATION
+
+
+library(caret)
+bestset=summary(regfit.best)$outmat
+error_5fold<-c()
+error_10fold<-c()
+
+for (i in 1:8){
+########## selecting predictors ###########
+models <- bestset[i,]       ### id variables is for the number of predictors
+predictors <- names(which(models == "*"))
+predictors <- paste(predictors, collapse = "+")
+model.formula<-as.formula(paste0("lpsa", "~", predictors))
+
+
+ ##### 5 fold cross validation
+set.seed(1)
+train.control_5 <- trainControl(method = "cv", number = 5)
+cv5 <- train(model.formula, data = prostateData, method = "lm",
+            trControl = train.control_5)
+error_5fold<-c(error_5fold,cv5$results$RMSE)
+
+
+##### 10 fold cross validation
+
+set.seed(1)
+train.control_10<- trainControl(method = "cv", number = 10)
+cv10 <- train(model.formula, data = prostateData, method = "lm",
+            trControl = train.control_10)
+cv10$results$RMSE
+
+error_10fold<-c(error_10fold,cv10$results$RMSE)
+
+
+}
+
+plot(error_5fold, main = "RMSE for 5 Fold CV")
+cat("The minimum error with 5 fold cross-validation is at k = ",which.min(error_5fold))
+
+plot(error_10fold, main = "RMSE for 10 Fold CV")
+cat("The minimum error with 10 fold cross-validation is at k = ", which.min(error_10fold))
+```
+
+&nbsp;
+
+```{r}
+#COMPUTING ERROR USING 0.632 BOOTSTRAP
+# Bootstrap
+best_sub = regsubsets(lpsa~.,data = prostateData,method="exhaustive")
+reg_summary=summary(best_sub)
+
+beta.fit <- function(X,Y){
+  lsfit(X,Y)	
+}
+beta.predict <- function(fit, X){
+  cbind(1,X)%*%fit$coef
+}
+sq.error <- function(Y,Yhat){
+  (Y-Yhat)^2
+}
+
+# Create X and Y
+X <- prostateData[,1:8]
+Y <- prostateData[,9]
+
+# Practice, WLOG lets look at a single model
+select = reg_summary$outmat
+
+# Generalize it, and search over the best possible subsets of size "k"
+error_store <- c()
+for (i in 1:8){
+  # Pull out the model
+  temp <- which(select[i,] == "*")
+  res <- bootpred(X[,temp], Y, nboot = 50, theta.fit = beta.fit, theta.predict = beta.predict, err.meas = sq.error) 
+  error_store <- c(error_store, res[[3]])
+}
+
+plot(error_store, type = "o", lty = 2, col = "blue" , xlab = "k", ylab = "error", main = "Model Selection using 0.632 bootstrap")
+
+```
+
+\newpage
+
+```{r}
+select
+```
+
+We see that almost all the methods agree that the best model is approximately at k(number of features in  the model) = 3,5,6. We should select k=3 as it will not overfit the data as we are including less number of variables in the model. 
+
+
+##SOLUTION 2
+```{r}
+rm(list = ls())
+#install.packages("rpart")
+#install.packages("caret")
+
+#library(tree)
+library("rpart")
+library(MASS)
+library("caret")
+
+wine_data = read.csv('/Users/abhishekkumar/Documents/MS_UB/Fall_18/ESL506_StatisticalDataMiningI/HW4/wine.data.txt',header = FALSE)
+
+#CONSTRUCTING TRAIN AND TEST SET
+wine_train = sample(1:nrow(wine_data), nrow(wine_data)*0.80)
+wine_test = -wine_train
+wine_train = wine_data[wine_train, ]
+wine_test = wine_data[wine_test, ]
+
+#FITTING THE TREE 
+model.control <- rpart.control(minsplit = 5, xval = 10, cp = 0)
+wine_model <- rpart(V1~., data = wine_train, method = "class", control = model.control)
+tree_pred = predict(wine_model, wine_test, type = "class")
+cat("Mean Classification Test Error: ", mean(tree_pred != wine_test$V1))
+plot(wine_model$cptable[,4], main = "Cp for model selection", ylab = "cv error")
+```
+
+&nbsp;
+
+
+```{r echo=FALSE, fig.align="center", fig.height=8, fig.pos='h', fig.width=4, message=FALSE, warning=FALSE}
+#PLOTTING THE COMPLETE DECISION TREEE
+min_cp = which.min(wine_model$cptable[,4])
+plot(wine_model, branch = .4, uniform = T, compress = T,  main = "Complete Tree")
+text(wine_model, use.n = T, all = T, cex = 0.8)
+cat("Mean Classification Test Error : ", mean(tree_pred != wine_test$V1))
+```
+
+&nbsp;
+
+\newpage
+
+```{r echo=FALSE, fig.align="center",  fig.height=8, fig.pos='h', fig.width=4}
+#PRUNING THE AND PLOTTING IT
+pruned_fit_dig <- prune(wine_model, cp = wine_model$cptable[min_cp,1])
+tree_pred = predict(pruned_fit_dig, wine_test, type = "class")
+plot(pruned_fit_dig, branch = .3, compress=T, main = "Pruned Tree")
+text(pruned_fit_dig, use.n = T, all = T, cex = 0.8)
+cat("Mean Classification Test Error : ",mean(tree_pred != wine_test$V1))
+```
+
+&nbsp;
+
+Calculating number of training and test data falling on each node:
+
+```{r message=FALSE, warning=FALSE}
+#CALCULATING NUMBER OF TRAINING AND TEST DATA FALLING ON EACH NODES
+# node - 1
+cat("No. of training data falling on node 1 is ",nrow(subset(wine_train,V11>=3.46& V8>=2.095&V14>=591)))
+cat("No. of test data falling on node 1 is ",nrow(subset(wine_test,V11>=3.46& V8>=2.095&V14>=591)))
+
+# node - 2
+cat("No. of training data falling on node 2 is ",nrow(subset(wine_train,V11>=3.46& V8>=2.095&V14<591)))
+cat("No. of test data falling on node 1 is ",nrow(subset(wine_test,V11>=3.46& V8>=2.095&V14<591)))
+
+# node - 3
+cat("No. of training data falling on node 3 is ",nrow(subset(wine_train,V11>=3.46& V8<2.095&V12>=0.97)))
+cat("No. of test data falling on node 3 is ",nrow(subset(wine_test,V11>=3.46& V8<2.095&V14>=0.97)))
+
+# node - 4
+cat("No. of training data falling on node 4 is ",nrow(subset(wine_train,V11>=3.46& V8<2.095&V12<0.97)))
+cat("No. of test data falling on node 4 is ",nrow(subset(wine_test,V11>=3.46& V8<2.095&V14<0.97)))
+
+# node - 5
+cat("No. of training data falling on node 5 is ",nrow(subset(wine_train,V11<3.46)))
+cat("No. of test data falling on node 5 is ",nrow(subset(wine_test,V11<3.46)))
+```
+
+\newpage
+
+The confusion matrix foe the test set is :
+```{r}
+table_mat <- table(wine_test$V1, tree_pred)
+table_mat
+```
+
+The tree was built using minimum split of 5, number of cross validations = 10 and the value of complexity parameter to be  = 0 after iterating through all permutations of these parameters. And then we pruned the tree with complexity parameter, cp as the minimum error using cross-validation on the complete tree.
+
+Let's look at the pruned tree and see how many data points fall into each node(leaves). We have 5 leaves node and as we can see from the tree plot that 46, 51, 4, 5 and 36 data points falls into each leaf nodes respectively. 
+
+&nbsp;
+
+
+##SOLUTION 3
+
+We will use Boston dataset and try to classify houses that lies in high crime zone or not. For this we will assume high crime zones where crime rate is more than the median crime rate and low crime zone where crime rate is below median crime rate.
+
+```{r message=FALSE, warning=FALSE}
+rm(list = ls())
+#install.packages("MASS")
+#install.packages("randomForest")
+#install.packages("gbm")
+library(MASS)
+library(randomForest)
+library(gbm)
+library("rpart")
+
+Boston$resp <- 0
+Boston$resp[Boston$crim > median(Boston$crim)] <- 1
+bostonData <- Boston[,-1]
+
+#Creating train and test set 
+train <- sample(1:nrow(bostonData), .75*nrow(bostonData))
+Boston_train <- bostonData[train,]
+Boston_test <- bostonData[-train,]
+
+#Fitting Logistic regresssion
+Boston_train$resp <- as.factor(Boston_train$resp)
+Boston_test$resp <- as.factor(Boston_test$resp)
+glm.fit <- glm(resp ~., data = Boston_train, family = "binomial")
+
+# Predict
+glm.probs.train <- predict(glm.fit, newdata = Boston_train, type = "response")
+y_hat_train <- as.numeric(round(glm.probs.train))
+glm.probs.test <- predict(glm.fit, newdata = Boston_test, type = "response")
+y_hat_test <- as.numeric(round(glm.probs.test))
+y_true_train <- as.numeric(Boston_train$resp)-1
+y_true_test <- as.numeric(Boston_test$resp)-1
+
+
+logistic_train_error <- sum(abs(y_hat_train - y_true_train))/length(y_true_train)
+logistic_test_error<- sum(abs(y_hat_test - y_true_test))/length(y_true_test)
+cat("Logistic Regression Train Error : ", logistic_train_error)
+cat("\n Logistic Regression Test error : ", logistic_test_error, "\n")
+```
+
+
+```{r}
+
+#Fitting KNN
+require(class)
+knn_test_error <- rep(NA,9)
+for(i in 1:10){
+  knn.pred <- knn(train=Boston_train, test=Boston_test, cl=Boston_train$resp, k=i)
+  knn_test_error[i-1] <- mean(knn.pred!=Boston_test$resp)
+}
+cat("KNN Test Error for k=1:10, :", knn_test_error, "\n")
+cat("For KNN, the test error is minimum at, K=",which.min(knn_test_error)," and the test Error is : ", min(knn_test_error))
+
+
+```
+
+```{r}
+## Growing a single tree
+model.control <- rpart.control(minsplit = 5, xval = 10, cp = 0)
+boston_model <- rpart(resp~., data = Boston_train, method = "class", control = model.control)
+tree_pred = predict(boston_model, Boston_test, type = "class")
+cat("Classifiaction error for a Single Tree :", mean(tree_pred != Boston_test$resp))
+
+min_cp = which.min(boston_model$cptable[,4])
+pruned_fit_dig <- prune(boston_model, cp = boston_model$cptable[min_cp,1])
+tree_pred = predict(pruned_fit_dig, Boston_test, type = "class")
+y_hat <- as.numeric(tree_pred)-1
+mis_class.tree <-  sum(abs(y_true_test - y_hat))/length(y_hat)
+cat("Classification Error for a Single Tree with pruning: ", mis_class.tree)
+
+plot(boston_model$cptable[,4], ylab = "cp Error", xlab = "Leaf Nodes")
+```
+
+&nbsp;
+
+```{r echo=FALSE, fig.align="center", fig.height=8, fig.pos='h', fig.width=4}
+## plot the full tree
+plot(boston_model, branch = .4, uniform = T, compress = T, main = "Complete Tree")
+text(boston_model, use.n = T, all = T, cex = 0.8)
+```
+
+
+```{r echo=FALSE, fig.align="center", fig.height=6, fig.pos='h', fig.width=4}
+plot(pruned_fit_dig, branch = .3, compress=T, main = "Pruned Tree")
+text(pruned_fit_dig, cex = .5)
+
+```
+
+&nbsp;
+
+```{r}
+# Random forest
+###############
+rf.fit<- randomForest(resp~., data = Boston_train, n.tree = 10000)
+varImpPlot(rf.fit, main = "Random Forest Gini decrease VS variables")
+importance(rf.fit)
+
+y_hat <- predict(rf.fit, newdata = Boston_test, type = 'response')
+y_hat <- as.numeric(y_hat) - 1
+misclass1 <- sum(abs(y_true_test - y_hat))/length(y_hat)
+cat("Classification error for test error using Random Forest : ",misclass1)
+```
+
+&nbsp;
+
+```{r}
+# Bagging
+##############
+rf.fit<- randomForest(resp~., data = Boston_train, n.tree = 10000,mtry = 13)
+varImpPlot(rf.fit, main = "Bagging Gini decrease VS variables")
+importance(rf.fit)
+
+y_hat <- predict(rf.fit, newdata = Boston_test, type = 'response')
+y_hat <- as.numeric(y_hat) - 1
+misclass1 <- sum(abs(y_true_test - y_hat))/length(y_hat)
+cat("Classification error for test error using Bagging :" ,misclass1)
+```
+
+```{r}
+# Boosting
+################
+Boost.train <- Boston_train
+Boost.train$resp<- as.numeric(Boston_train$resp)-1
+Boost.test <- Boston_test
+Boost.test$resp<- as.numeric(Boston_test$resp)-1
+boost.fit1 = gbm(Boost.train$resp ~., data = Boost.train, n.trees = 300, 
+                 shrinkage = .1, interaction.depth = 3, distribution = "adaboost")
+
+boost.fit2 = gbm(Boost.train$resp~., data = Boost.train, n.trees = 300, 
+                 shrinkage = .6, interaction.depth = 3, distribution = "adaboost")
+
+### Error for shrinkage 0.1
+y_hat <- predict(boost.fit1, newdata = Boost.test, n.trees = 300, type = 'response')
+misclass_boost <- sum(abs(y_hat- y_true_test))/length(y_true_test)
+cat("Misclassification error for AdaBoost with shrinkage = 0.1", misclass_boost,"\n")
+
+### Error for shrinkage 0.6
+y_hat <- predict(boost.fit2, newdata = Boost.test, n.trees = 300, type = 'response')
+misclass_boost <- sum(abs(y_hat- y_true_test))/length(y_true_test)
+cat("Misclassification error for AdaBoost with shrinkage = 0.6", misclass_boost,"\n")
+
+shrink <- c(.1,.4,.6,.8)
+max_iter <- 1000
+store_error <- c()
+for(i in 1:length(shrink)){
+  boost.fit <- gbm(resp~.,data = Boost.train, n.trees =max_iter, shrinkage = shrink[i],interaction.depth = 3,distribution = "adaboost")
+  temp<-c()
+  for(j in 1:max_iter){
+    y_hat <- predict(boost.fit, newdat  = Boost.test, n.trees = j,type= "response")
+    misclass_boost <- sum(abs(y_true_test-y_hat))/length(y_true_test)
+    temp <- c(temp,misclass_boost)
+  }
+  store_error<- cbind(store_error,temp)
+}
+colnames(store_error) <- paste("shrinkage",shrink,sep = ":")
+
+
+plot(store_error[,1],main = "Error Profiles for AdaBoost", ylab = "error", xlab = "boosting")
+lines(store_error[,2],col="red")
+lines(store_error[,3],col="blue")
+lines(store_error[,4],col="green")
+
+legend(750, 0.4, legend=c("0.1 shrikage", "0.4 shrikage","0.6 shrikage","0.8 shrikage"),
+       col=c("black","red","blue","green"),lty=1:1, cex=0.8)
+```
+
+
+We have implemented several methods for the Boston dataset such as Random Forest, Bagging, Boosting(AdaBoost) and other simplistic methods such as Logistic Regression and KNN. The errors on test sets were: Logistic Regression = 0.1102, KNN = 0.0787, Random Forest = 0.0236, Bagging = 0.1574, AdaBoost = 0.04338. From the Assignment 1 correlation plot for the same dataset we saw that the variables were linearly inseperable and hence we see a poor classification error by logistic regression while the committee machines methods performs quite better than logistic regression. We see that Bagging performs the best with a test error of 0.01574. Also, KNN does not perform as good as the committee machines methods because of high dimensional nature of our data. 
+
+The only disadvantage of committee machines over the simple classification methods for our data set is that it is computationally expensive. 

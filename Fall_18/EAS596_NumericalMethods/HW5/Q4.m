@@ -1,0 +1,1 @@
+rand_int = randi([10 1000],1,200);rand_int = sort(rand_int);len = size(rand_int,2);time_LU = zeros(1,len);for i = 1:len  n = rand_int(1,i);  A = rand(n,n) + n*eye(n);  tic;  [L,U] = Q3_LUfunction(A);  time_LU(1,i) = toc;end  % fitting the curvef= fit(transpose(rand_int), transpose(time_LU),'poly3');hold onloglog(rand_int,time_LU)plot(f)grid onhold off

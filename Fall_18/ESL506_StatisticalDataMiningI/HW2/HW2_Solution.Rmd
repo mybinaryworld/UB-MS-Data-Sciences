@@ -1,0 +1,344 @@
+---
+title: "EAS596, Homework_2"
+author: "Abhishek Kumar, Class#1"
+date: "9/29/2018"
+output:
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+```{r cars, include=FALSE}
+rm(list = ls())
+library(ISLR)    #install.packages("ISLR")
+library(glmnet)  #install.packages("glmnet")
+library(ISLR)
+
+```
+
+##SOLUTION 1
+The college data has 777 observations and the data is clean. Data has been divided into training and test data-set in the ratio of 3:1, with training set having 583 observations and test set having 194 observations.
+```{r include=FALSE}
+set.seed(12345)
+train <- sample(1:nrow(College), round(nrow(College)*0.75))
+test <- -train
+train <- College[train,]
+test <- College[test,]
+
+```
+
+```{r 1.(a), include=FALSE}
+fit.linear <- lm(Apps ~ ., data = train)
+pred.linear <- predict(fit.linear, test)
+RMSE_linear <- sqrt(mean((pred.linear - test$Apps)^2))
+
+```
+a) Using linear model we get an RMSE of 1044.6566 on the test set.
+b) Now, we fit the ridge regression using cross-validation and calculate the test error to be 1044.654 at lambda = 0.000135. From the plot below we can also see that the MSE does not vary much with log(lambda) in range (-10, 3) and the test error increases if we further increase lambda beyond 1000. 
+
+```{r echo=FALSE, fig.align='center', fig.height=2.5, fig.width=4}
+#Ridge Regression
+train_matrix = model.matrix(Apps ~ ., data = train)[,-1]
+test_matrix = model.matrix(Apps ~ ., data = test)[,-1]
+grid = 10^seq (3,-5, length = 100)
+
+cv.model.ridge = cv.glmnet(train_matrix, train$Apps, lambda = grid, alpha = 0)
+bestlam_ridge = cv.model.ridge$lambda.min
+ridge.pred = predict(cv.model.ridge, s = bestlam_ridge, newx = test_matrix, type = "response")
+RMSE_ridge = sqrt(mean((ridge.pred - test$Apps)^2))  #MSE = mean_test_error
+```
+
+d) Here we have used lasso regression with cross-validation and get almost the same results as with ridge regression. The RMSE comes to be 1044.6562 at lambda = 10^5. We also see the behaviour that the MSE does not vary much with lambda in the range of (10^-10, 10^3).
+The number of non-zero coefficients using lasso is 15, excluding the intercept.
+
+```{r echo=FALSE, message=FALSE}
+#Lasso
+grid = 10^seq (1,-5, length = 100)
+cv.model.lasso <- cv.glmnet(train_matrix, train$Apps, lambda = grid, alpha = 1)
+bestlam_lasso <- cv.model.lasso$lambda.min
+lasso.pred <- predict(cv.model.lasso, s = bestlam_lasso, newx = test_matrix, type = "response")
+RMSE_lasso <- sqrt(mean((lasso.pred - test$Apps)^2))  #MSE = mean_test_error
+
+```
+
+e) When we use Principal Component Regression to fit the model we see that most of the variance in the model is explained by the 15 variables(~91%). The RMSE when using 15 components comes to be around 1219.3785, while if we use all 17 components the RMSE comes to be 1044.6566. Finally we use k=15 for better interpretability.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+library(pls)  #install.packages("pls")
+set.seed (2)
+pcr.fit = pcr(Apps~., data =  train, scale =TRUE ,validation = "CV")
+pcr.pred_k15 <- predict(pcr.fit, test, ncomp = 15)
+RMSE_pcr_k15 = sqrt(mean((pcr.pred_k15 - test$Apps)^2))
+pcr.pred_k17 <- predict(pcr.fit, test, ncomp = 17)
+RMSE_pcr_k17 = sqrt(mean((pcr.pred_k17 - test$Apps)^2))
+
+```
+
+f) Here we are implementing Partial Least Square to fit the model. In the plot below we see that most of the variance(~92.66%) is explained by only 5 variables and the RMSE on test data comes to be 1127.7290. We choose k=5 for better interpretability.
+```{r 1.(f)}
+library(pls)  #install.packages("pls")
+set.seed (1)
+plsr.fit = plsr(Apps~., data =  train, scale =TRUE ,validation = "CV")
+plsr.pred_k5 <- predict(plsr.fit, test, ncomp = 5)
+RMSE_plsr_k5 = sqrt(mean((plsr.pred_k5 - test$Apps)^2))
+```
+
+&nbsp;
+
+```{r echo=FALSE, fig.height=3.7, fig.align='center', fig.cap=NULL}
+plot(cv.model.ridge, sub="Ridge")
+plot(cv.model.ridge, sub="Lasso")
+```
+
+&nbsp;
+
+```{r}
+validationplot(pcr.fit, val.type = "MSEP", xlab = "no. of components(PCR)", main =NULL)
+```
+
+&nbsp;
+
+```{r}
+validationplot(plsr.fit, val.type = "MSEP", xlab = "no. of components(PLS)", main = NULL)
+```
+
+&nbsp;
+
+```{r}
+library(knitr)
+per_table <- data.frame("Model" = c("OLS", "Ridge", "Lasso", "PCR(k=15)", "PLS(k=5)"), "RMSE"= c(1044.66, 1044.64, 1044.66, 1219.37, 1127.73))
+kable(per_table) 
+```
+
+
+##### g) As a summary, we can say that all of the methods give almost same RMSE= 1044.65 on the test data. But if we can tradeoff some error for more interpretability, partial least square gives an RMSE of just 1127.72 using just five of the variables against other methods who accuracy is good only when we include all the variables in the model. 
+
+
+##SOLUTION 2
+To predict people who will be interested in buying the caravan insurance policy, we have used ordinary least square, forward subset selection, backward subset selection, ridge regression and lasso regression. We get an error of ~5.95% on test data for OLS, forward, backward and an error of ~5.28% for ridge and lasso regression. 
+
+&nbsp;
+
+But when we plot the histogram of people who bought insurance we find that the classes are skewed, i.e number of people who buy insurance is 6.23%(training-set) and 5.95%(test-set). And our model's accuracy is ~5.95%. This implies that even if we say that none of the people in the test data took insurance, our accuracy will be 5.95%. Thus, even though our MSE is very low our model isn't working. This is due to the fact that our data-set is highly skewed and we cannot predict with confidance the response. We may try masking or oversampling/undersampling methods to remove the imbalance of the data-set and then perform one of the classification algorithm to predict the response.
+
+&nbsp;
+
+&nbsp;
+
+&nbsp;
+
+```{r include=FALSE}
+rm(list=ls())
+library(glmnet)
+library(leaps)   #install.packages("leaps")
+library(MASS)
+caravan_train_all <- read.table("tic/ticdata2000.txt",sep="\t")
+caravan_test <- read.table("tic/ticeval2000.txt",sep="\t")
+caravan_test$Y <- read.table("tic/tictgts2000.txt",sep="\t")
+caravan_test$Y <- caravan_test$Y$V1
+
+#Creating Cross-verification dataset
+set.seed(12345)
+caravan_train_index <- sample(1:nrow(caravan_train_all), round(nrow(caravan_train_all)*0.75))
+caravan_cv_index <- -caravan_train_index
+caravan_train <- caravan_train_all[caravan_train_index,]
+caravan_cv <- caravan_train_all[caravan_cv_index,]
+
+```
+
+```{r echo=FALSE}
+#ORDINARY LEAST SQUARE
+caravan.fit.linear <- lm(V86 ~ ., data = caravan_train)
+caravan.train_pred.linear <- predict(caravan.fit.linear, caravan_train)
+caravan_trainMSE_linear <- mean((caravan.train_pred.linear - caravan_train$V86)^2)
+caravan.cv_pred.linear <- predict(caravan.fit.linear, caravan_cv)
+caravan_cvMSE_linear <- mean((caravan.cv_pred.linear - caravan_cv$V86)^2)
+caravan.test_pred.linear <- predict(caravan.fit.linear, caravan_test)
+caravan.test_pred.linear <- ifelse(caravan.test_pred.linear < 0.5, 0, 1)
+caravan_testMSE_linear <- mean((caravan.test_pred.linear - caravan_test$Y)^2)
+
+```
+
+```{r echo=FALSE}
+#FORWARD SUBSET SELECTION
+caravan.fit.forward <- regsubsets(V86~., data = caravan_train, nbest = 1, nvmax = 85, method = "forward")
+my_sum_forward <- summary(caravan.fit.forward)
+
+
+#Select best number of variables for which we get minimum error in Cross-validation set
+caravan_cv.mat = model.matrix(V86 ~ ., data= caravan_cv)
+cval.errors_forward = rep(NA ,85)
+for (i in 1:85) {
+ coefi = coef(caravan.fit.forward ,id=i)
+ pred = caravan_cv.mat[, names ( coefi ) ]%*% coefi
+ pred <- ifelse(pred < 0.5, 0, 1)
+ cval.errors_forward [i] = mean(( caravan_cv$V86 - pred )^2)
+}
+num_var_forward = which.min (cval.errors_forward)
+caravan_cvMSE_forward = cval.errors_forward[num_var_forward]
+
+#Test Error Forward
+caravan_test.mat = model.matrix(caravan_test$Y ~ ., data= caravan_test)
+test_pred = caravan_test.mat[, names ( coef(caravan.fit.forward ,id=num_var_forward) ) ]%*% coef(caravan.fit.forward ,id=num_var_forward) 
+test_pred <- ifelse(test_pred < 0.5, 0, 1)
+caravan_testMSE_forward  = mean(( caravan_test$Y - test_pred )^2)
+
+
+```
+
+```{r echo=FALSE}
+#BACKWARD SUBSET SELECTION
+
+caravan.fit.backward <- regsubsets(V86~., data = caravan_train, nbest = 1, nvmax = 85, method = "backward")
+my_sum_backward <- summary(caravan.fit.backward)
+
+cval.errors_backward = rep(NA ,85)
+for (i in 1:85) {
+ coefi = coef(caravan.fit.backward ,id=i)
+ pred = caravan_cv.mat[, names ( coefi ) ]%*% coefi
+ pred <- ifelse(pred < 0.5, 0, 1)
+ cval.errors_backward [i] = mean(( caravan_cv$V86 - pred )^2)
+}
+num_var_backward = which.min (cval.errors_backward)
+caravan_cvMSE_backward = cval.errors_backward[num_var_backward]
+
+#Calculating Test Error
+test_pred = caravan_test.mat[, names ( coef(caravan.fit.backward ,id=num_var_backward) ) ]%*% coef(caravan.fit.backward ,id=num_var_backward) 
+test_pred <- ifelse(test_pred < 0.5, 0, 1)
+caravan_testMSE_backward  = mean(( caravan_test$Y - test_pred )^2)
+```
+
+```{R echo=FALSE}
+#RIDGE REGRESSION
+caravan_train_matrix <- model.matrix(V86 ~ ., data = caravan_train)
+caravan_train_y <- caravan_train[,86]
+caravan_cv_matrix <- model.matrix(V86 ~ ., data = caravan_cv)
+caravan_cv_y <- caravan_cv[,86]
+grid =10^seq (10,-2, length = 100)
+
+caravan.cv.model.ridge <- cv.glmnet(caravan_train_matrix, caravan_train_y, lambda = grid, alpha = 0)
+caravan_bestlam_ridge <- caravan.cv.model.ridge$lambda.min
+caravan.cv.pred.ridge <- predict(caravan.cv.model.ridge, s = caravan_bestlam_ridge, newx = caravan_cv_matrix, type = "response")
+caravan_testMSE_ridge <- mean((caravan.cv.pred.ridge - caravan_cv_y)^2)  #MSE = mean_test_error
+```
+
+```{r echo=FALSE, fig.align='center', fig.height=2.5, fig.width=4}
+#LASSO REGRESSION
+library(ggplot2)
+grid =10^seq (10,-2, length = 100)
+caravan_train_matrix <- model.matrix(V86 ~ ., data = caravan_train)
+caravan_train_y <- caravan_train[,86]
+caravan_cv_matrix <- model.matrix(V86 ~ ., data = caravan_cv)
+caravan_cv_y <- caravan_cv[,86]
+
+caravan.cv.model.lasso <- cv.glmnet(caravan_train_matrix, caravan_train_y, alpha = 1)
+caravan_bestlam_lasso <- caravan.cv.model.lasso$lambda.min
+caravan.cv.pred.lasso <- predict(caravan.cv.model.lasso, s = caravan_bestlam_lasso, newx = caravan_cv_matrix, type = "response")
+caravan_testMSE_lasso <- mean((caravan.cv.pred.lasso - caravan_cv_y)^2)  #MSE = mean_test_error
+
+
+ggplot(caravan_train, aes(x = caravan_train$V86))+ geom_histogram(binwidth = 0.5) + labs(x = "People who bought insurance (=1)", y = "Count")
+```
+
+###Some extra analysis
+Here I have used Random walk oversampling method to oversample the minority class to 10 times and then used linear discriminant analysis to fit the model. When observing the confusion matrix, we see that the model is not able to predict people who will buy insurance. This is almost the similar confusion matrix we get when we apply OLS without oversampling. We need to furthur deploy more sophisticated techniques to be able to predict the responses accurately.
+
+###Confusion Matrix
+
+```{r echo=FALSE}
+#Oversampling
+library("imbalance")
+library(caret)
+os_data <- rwo(caravan_train_all, 3480, classAttr= "V86")
+cara_os_train <- rbind(os_data, caravan_train_all)
+cara_os_train$V86 <- as.factor(cara_os_train$V86)
+caravan_test$Y <- as.factor(caravan_test$Y)
+caravan_test.mat = model.matrix(caravan_test$Y ~ ., data= caravan_test)
+
+library(MASS)
+cara_os.fit.logi <- lda(V86 ~ ., data = cara_os_train, na.action="na.omit")
+caravan.test_pred.logi <- predict(cara_os.fit.logi, caravan_test[,-86])$class;
+confusionMatrix(caravan.test_pred.logi, as.factor(caravan_test$Y))
+
+```
+
+&nbsp;
+
+&nbsp;
+
+
+
+##SOLUTION 3
+For this problem, I have created 1000 observations with 20 predictors by randomly choosing integers in range 0-100 and similarly created beta by randomly choosing integers in range 0-50. we then add a  Also some beta (index-3,6,12,13,16) were manually set to zero. We now calculate the response,Y, analyze and add a gaussian error to it with mean 0 and standard deviation of 1000. Then the data is divided into training and test data in the ratio of 1:9 and we perform best subset selection. 
+
+
+###Now, we plot the RMSE between training set and test set and we see that as we increase the number of observations in our model the training error necessarily decreases but the test error does not decrease alwayss.
+
+```{r echo=FALSE}
+rm(list=ls())
+library(leaps)
+X = matrix(sample.int(100, 20000, TRUE), 1000, 20)
+beta = matrix(sample.int(50, 20, FALSE), 20, 1)
+beta[3] <- 0
+beta[13] <- 0
+beta[12] <- 0
+beta[16] <- 0
+beta[6] <- 0
+epsilon <- rnorm(20, mean = 0, sd = 1000)
+Y = X%*%beta+epsilon
+custom_data = data.frame(Y,X)
+
+#creating train-test set
+set.seed(123)
+custom_train_index <- sample(1:nrow(Y), round(nrow(Y)*0.1))
+custom_test_index <- -custom_train_index
+custom_train <- custom_data[custom_train_index,]
+custom_test <- custom_data[custom_test_index,]
+
+#Fitting the data
+custom.fit.best <- regsubsets(Y~., data = custom_train, nbest = 1, nvmax = 20)
+train_sum_custom_best <- summary(custom.fit.best)
+
+#Calculating Training Error
+custom_train.mat = model.matrix(Y ~ ., data= custom_train)
+train.errors_best = rep(NA ,20)
+for (i in 1:20) {
+ coefi = coef(custom.fit.best ,id=i)
+ pred = custom_train.mat[, names ( coefi ) ]%*% coefi
+ train.errors_best [i] = sqrt(mean(( custom_train$Y - pred )^2))
+}
+
+#Calculating Test Error
+custom_test.mat = model.matrix(Y ~ ., data= custom_test)
+test.errors_best = rep(NA ,20)
+for (i in 1:20) {
+ coefi = coef(custom.fit.best ,id=i)
+ pred = custom_test.mat[, names ( coefi ) ]%*% coefi
+ test.errors_best [i] = sqrt(mean(( custom_test$Y - pred )^2))
+}
+
+library(ggplot2)
+df.errors <- data.frame(train.errors_best,test.errors_best,seq(1:20))
+colnames(df.errors) <- c("RMSE_training_error", "RMSE_test_error","subset")
+ggplot(df.errors, aes(x=df.errors$subset)) + geom_line(aes(y = df.errors$RMSE_test_error, colour = "Test Error")) + geom_line(aes(y = df.errors$RMSE_training_error, colour = "Training Error")) + scale_x_continuous(breaks = seq(0, 20, 1))+ labs(x = "No. of components in forward subset selection", y = " RMSE") 
+```
+
+&nbsp;
+
+###We can also see that that coefficients predicted from best subset selection is very close to the ones manually created. Also the model was able to discard the coefficients corresponding to the ones we have manually set to 0.
+
+###Manually created beta values:
+```{r echo=FALSE}
+which.min(df.errors$RMSE_test_error)
+t(beta)
+```
+
+###calculated/predicted beta values:
+```{r echo=FALSE}
+coef(custom.fit.best, id =15)
+```
+

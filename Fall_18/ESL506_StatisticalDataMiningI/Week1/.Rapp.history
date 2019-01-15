@@ -1,0 +1,28 @@
+clear
+clean
+em(list = ls())
+r
+rm(list = ls())
+setwd("/Users/abhishekkumar/Documents/MS_UB/Fall'18/ESL506_StatisticalDataMiningI/Week1")
+install.packages("DAAG")#
+install.packages("lattice")#
+install.packages("MASS")
+library(DAAG)#
+library(lattice)#
+library(MASS)
+?possum
+dim(possum)
+fossum <- subset(possum, sex == "f")
+fossum
+summary(fossum)
+describe(mydata)
+library(Hmisc)
+names(fossum)
+head(A)
+head(fossum)
+head(1:10,-1)
+head(fossum,-1)
+fossum <- subset(possum, sex == "f")
+write.table(fossum, file = "fem_possum_data", sep ="\t", row.names =FALSE, col.names = (names(possum)))
+temp <- read.delim("fem_possum_data", sep="\t", header =TRUE)
+head(temp)

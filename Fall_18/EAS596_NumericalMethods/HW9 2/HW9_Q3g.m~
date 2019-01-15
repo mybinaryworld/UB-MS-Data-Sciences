@@ -1,0 +1,15 @@
+for j = 2:2:8
+    for i = 100:100:10000
+    steps(i/100) = (2*pi/i);
+    h1 = (2*pi)/(i);
+    x = linspace(0, 2*pi, i);
+    y = sin(x);
+    y_ = y + (2*(h^j)*(rand(size(y))+0.5));
+    diff_y = -sin(y_);
+    B1 = secondDer_Order2(y_,h1);
+    C = secondDer_Order4(y_,h1);
+    error_sec(i/100) = max(diff_y-B1);
+    error_four(i/100) = max(diff_y-C);
+    end
+ errorOrder(steps,error_sec,error_four,j)
+ end

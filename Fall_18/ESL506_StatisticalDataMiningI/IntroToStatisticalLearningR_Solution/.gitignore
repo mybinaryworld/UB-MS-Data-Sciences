@@ -1,0 +1,13 @@
+# History files
+.Rhistory
+.Rdata
+*.Rproj
+*.md
+*.Md
+*.html
+*.png
+*figure/*
+
+# Example code in package build process
+*-Ex.R
+.Rproj.user

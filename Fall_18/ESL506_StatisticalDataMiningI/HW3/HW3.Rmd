@@ -1,0 +1,379 @@
+---
+title: "EAS596, Homework_3"
+author: "Abhishek Kumar, Class#1"
+date: "2/10/2018"
+output:
+  pdf_document: 
+    fig_caption: yes
+    keep_tex: yes
+  word_document: default
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(ISLR)
+library(MASS)
+library(ggplot2)
+library(corrplot)
+setwd("/Users/abhishekkumar/Documents/MS_UB/Fall_18/ESL506_StatisticalDataMiningI/HW3")
+```
+
+
+```{r cars, include=FALSE}
+rm(list = ls())
+data(Boston)
+boston = Boston
+
+```
+
+
+##SOLUTION 1
+To predict whether a given suburb has a crime rate above or below the median, we make a new varible "crime_above_median" that is 0 if the crime in the suburb is less than the median else will be 1. We then divide the dataset into training and test in the ratio of 75:25 respectively. To analyze the correlation among variable let's look at the correlation plot:
+
+&nbsp;
+
+```{r echo=FALSE, fig.align="center", fig.cap=paste("Correlation Matrix Intensity"), fig.height=4, fig.pos='h', fig.width=4}
+set.seed(1)
+boston$crime_above_median <- ifelse(boston$crim < median(boston$crim), 0, 1)
+boston$crime_above_median <- as.factor(boston$crime_above_median)
+boston <- subset(boston, select = -c(crim))
+boston_train <- sample(1:nrow(boston), round(nrow(boston)*0.75))
+boston_test <- -boston_train
+boston_train <- boston[boston_train,]
+boston_test <- boston[boston_test,]
+corrplot(cor(Boston), type = "lower", order = "original", tl.col = "black", tl.srt = 45)
+```
+
+&nbsp;
+
+From the above correlation plot we can infer that crime is very loosely related to 'chas','zn' and 'rm'. We can also deduce that 'chas' has negligible magnitude while 'zn' and 'rm' has very less but more magnitude than 'chas'. So we will work on three subsets: (a)With all the variables (b) Excluding 'chas' (c) Excluding 'chas', 'zn' and 'rm'
+
+\newpage
+
+###USING LOGISTIC REGRESSION
+###Including all variables
+```{r echo=FALSE}
+logi.fit_a <- glm(crime_above_median~ ., data =boston_train, family = binomial)
+
+#predicting training set
+logi.train.probs_a = predict(logi.fit_a,  boston_train, type="response")
+logi.train.pred_a = ifelse(logi.train.probs_a < 0.5, 0, 1)
+logi.train.accuracy_a = sum(ifelse(logi.train.pred_a == boston_train$crime_above_median,1,0))/length(logi.train.pred_a)
+
+#predicting training set
+logi.test.probs_a = predict(logi.fit_a,  boston_test, type="response")
+logi.test.pred_a = ifelse(logi.test.probs_a < 0.5, 0, 1)
+logi.test.accuracy_a = sum(ifelse(logi.test.pred_a == boston_test$crime_above_median,1,0))/length(logi.test.pred_a)
+
+cat("Confusion Matrix for test data:")
+table(logi.test.pred_a, boston_test$crime_above_median)
+cat("Train Accuracy: ", logi.train.accuracy_a)
+cat("\n")
+cat("Test Accuracy: ", logi.test.accuracy_a, "\n")
+cat("\n")
+```
+
+
+&nbsp;
+
+###Excluding 'chas'
+```{r echo=FALSE}
+logi.fit_b <- glm(crime_above_median~ . -chas, data =boston_train, family = binomial)
+
+#predicting training set
+logi.train.probs_b = predict(logi.fit_b,  boston_train, type="response")
+logi.train.pred_b = ifelse(logi.train.probs_b < 0.5, 0, 1)
+logi.train.accuracy_b = sum(ifelse(logi.train.pred_b == boston_train$crime_above_median,1,0))/length(logi.train.pred_b)
+
+#predicting test set
+logi.test.probs_b = predict(logi.fit_b,  boston_test, type="response")
+logi.test.pred_b = ifelse(logi.test.probs_b < 0.5, 0, 1)
+logi.test.accuracy_b = sum(ifelse(logi.test.pred_b == boston_test$crime_above_median,1,0))/length(logi.test.pred_b)
+
+cat("Confusion Matrix for test data:")
+table(logi.test.pred_b, boston_test$crime_above_median)
+cat("\n")
+cat("Train Accuracy: ", logi.train.accuracy_b)
+cat("\n")
+cat("Test Accuracy: ", logi.test.accuracy_b)
+cat("\n")
+```
+
+&nbsp;
+
+&nbsp;
+
+###Excluding 'chas', 'rm', 'tax'
+```{r echo=FALSE}
+#FITTING LOGISTIC REGRESSION MODEL;  EXCLUDING 'chas', 'rm', 'tax' VARIABLES 
+logi.fit_c <- glm(crime_above_median~ . -chas -tax -rm, data =boston_train, family = binomial)
+
+#predicting training set
+logi.train.probs_c = predict(logi.fit_c,  boston_train, type="response")
+logi.train.pred_c = ifelse(logi.train.probs_c < 0.5, 0, 1)
+logi.train.accuracy_c = sum(ifelse(logi.train.pred_c == boston_train$crime_above_median,1,0))/length(logi.train.pred_c)
+
+#predicting test set
+logi.test.probs_c = predict(logi.fit_c,  boston_test, type="response")
+logi.test.pred_c = ifelse(logi.test.probs_c < 0.5, 0, 1)
+logi.test.accuracy_c = sum(ifelse(logi.test.pred_c == boston_test$crime_above_median,1,0))/length(logi.test.pred_c)
+
+cat("Confusion Matrix:")
+table(logi.test.pred_c, boston_test$crime_above_median)
+cat("\n")
+cat("Train Accuracy: ", logi.train.accuracy_c)
+cat("\n")
+cat("Test Accuracy: ", logi.test.accuracy_c)
+cat("\n")
+```
+
+&nbsp;
+
+\newpage
+
+###USING LDA
+###Including all variables
+```{r echo=FALSE}
+library(MASS)
+#FITTING LDA MODEL; 
+lda.fit_a = lda(crime_above_median~. , boston_train)
+
+#predicting training set
+lda.train.pred_a = predict(lda.fit_a, boston_train)
+lda.train.accuracy_a = sum(lda.train.pred_a$class == boston_train$crime_above_median)/length(lda.train.pred_a$class)
+
+#Predicting test set
+lda.test.pred_a = predict(lda.fit_a, boston_test)
+lda.test.accuracy_a = sum(lda.test.pred_a$class == boston_test$crime_above_median)/length(lda.test.pred_a$class)
+
+cat("Confusion Matrix for test data:")
+table(lda.test.pred_a$class, boston_test$crime_above_median)
+cat("\n")
+cat("Training Accuracy: ", lda.test.accuracy_a)
+cat("\n")
+cat("Test Accuracy: ", lda.test.accuracy_a)
+cat("\n")
+```
+
+&nbsp;
+
+###Excluding 'chas'
+```{r echo=FALSE}
+#FITTING LDA MODEL; excluding chas
+lda.fit_b = lda(crime_above_median~. -chas, boston_train)
+
+#predicting training set
+lda.train.pred_b = predict(lda.fit_b, boston_train)
+lda.train.accuracy_b = sum(lda.train.pred_b$class == boston_train$crime_above_median)/length(lda.train.pred_b$class)
+
+#Predicting test set
+lda.test.pred_b = predict(lda.fit_b, boston_test)
+lda.test.accuracy_b = sum(lda.test.pred_b$class == boston_test$crime_above_median)/length(lda.test.pred_b$class)
+
+cat("Confusion Matrix for test data:")
+table(lda.test.pred_b$class, boston_test$crime_above_median)
+cat("\n")
+cat("Training Accuracy: ", lda.train.accuracy_b)
+cat("\n")
+cat("Test Accuracy: ", lda.test.accuracy_b)
+cat("\n")
+```
+
+&nbsp;
+
+###Excluding 'chas', 'rm', 'tax'
+
+```{r echo=FALSE}
+#FITTING LDA MODEL; excluding chas, tax, rm
+lda.fit_c = lda(crime_above_median~. -chas -tax -rm, boston_train)
+
+#predicting training set
+lda.train.pred_c = predict(lda.fit_c, boston_train)
+lda.train.accuracy_c = sum(lda.train.pred_c$class == boston_train$crime_above_median)/length(lda.train.pred_c$class)
+
+#Predicting test set
+lda.test.pred_c = predict(lda.fit_c, boston_test)
+lda.test.accuracy_c = sum(lda.test.pred_c$class == boston_test$crime_above_median)/length(lda.test.pred_c$class)
+
+cat("Confusion Matrix for test data :")
+table(lda.test.pred_c$class, boston_test$crime_above_median)
+cat("Training Accuracy :", lda.train.accuracy_c)
+cat("\n")
+cat("Test Accuracy, excluding chas, tax, rm: ", lda.test.accuracy_c)
+cat("\n")
+```
+
+&nbsp;
+
+\newpage
+
+###USING kNN
+### Including all variables
+```{r echo=FALSE}
+library(class)
+#FITTING kNN MODEL; including all variables
+knn.pred_a = knn(train = subset(boston_train, select = -c(crime_above_median)), subset(boston_test, select = -c(crime_above_median)), boston_train$crime_above_median, k = 3)
+knn.test.accuracy_a = mean(knn.pred_a == boston_test$crime_above_median)
+
+cat("#kNN MODEL; including all variables\n")
+cat("Confusion Matrix for test data :")
+table(knn.pred_a, boston_test$crime_above_median)
+cat("kNN Test Accuracy, including all variables: ", knn.test.accuracy_a)
+cat("\n")
+```
+
+&nbsp;
+
+###Excluding 'chas'
+
+```{r echo=FALSE}
+#FITTING kNN MODEL; excluding chas
+knn.pred_b = knn(train = subset(boston_train, select = -c(crime_above_median, chas)), subset(boston_test, select = -c(crime_above_median, chas)), boston_train$crime_above_median, k = 3)
+knn.test.accuracy_b = mean(knn.pred_b == boston_test$crime_above_median)
+
+cat("#kNN MODEL; excluding 'chas'\n")
+cat("Confusion Matrix for test data :")
+table(knn.pred_b, boston_test$crime_above_median)
+cat("Test Accuracy: ", knn.test.accuracy_b)
+cat("\n")
+```
+
+&nbsp;
+
+###Excluding 'chas', 'rm', 'tax'
+
+```{r echo=FALSE}
+#FITTING kNN MODEL; excluding chas
+knn.pred_c = knn(train = subset(boston_train, select = -c(crime_above_median, chas, rm, tax)), subset(boston_test, select = -c(crime_above_median, chas, rm, tax)), boston_train$crime_above_median, k = 3)
+knn.test.accuracy_c = mean(knn.pred_c == boston_test$crime_above_median)
+
+cat("#kNN MODEL; excluding 'chas', 'rm', 'tax'\n")
+cat("Confusion Matrix for test data :")
+table(knn.pred_c, boston_test$crime_above_median)
+cat("Test Accuracy: ", knn.test.accuracy_c)
+cat("\n")
+```
+
+###INFERENCES :
+From the above computations, we see that the performance of logistic regression and knn is better than the LDA classification method. This maybe because the predictors are not normally distributed and also because the classes not linearly seperable. Although there is some difference in the performance of the LDA, it is not very pronounced.
+\newpage
+
+##SOLUTION 2
+###(a)
+When we look at the pairplot below we can see that most of the distributions are different for each of the plot. Hence each class will have different covariance with respect to the pairwise variables and eventually will have different covariance matrices.  \newline
+
+```{r echo=FALSE}
+rm(list = ls())
+data = read.table('/Users/abhishekkumar/Documents/MS_UB/Fall_18/ESL506_StatisticalDataMiningI/HW3/DiabetesAndrews36_1.txt', header = FALSE)
+data = subset(data, select = -c(1,2,3,4))
+names(data) <- c("glucose_area", "insulin_area", "SSPG", "relative_weight", "fasting_plasma_glucose","class")
+data$class = as.factor(data$class)
+
+diabetes_train <- sample(1:nrow(data), round(nrow(data)*0.75))
+diabetes_test <- -diabetes_train
+diabetes_train <- data[diabetes_train,]
+diabetes_test <- data[diabetes_test,]
+pairs(data[,1:5], upper.panel =NULL ,main = "Diabetes Data", pch = 21, bg = c("red", "green3", "blue")[unclass(data$class)])
+legend("topright", 
+  legend = c("Class 1", "Class 2", "Class 3"), col = c("red", "green3", "blue"), bty = "n", pch = c(16,16,16), inset = c(0.1, 0.1) )
+```
+
+
+
+Its hard to determine if each class have a multivariate distribution. So, we'll do a multivariate test using MVN library to check if the classes have multivariate distribution.
+```{r}
+library(MVN)
+cat("Multivariate test for class 1")
+mvn(subset(data, class == 1, select= -c(class)), mvnTest = "mardia")$multivariateNormality
+cat("\n")
+cat("\n")
+cat("Multivariate test for class 2")
+mvn(subset(data, class == 2, select= -c(class)), mvnTest = "mardia")$multivariateNormality
+cat("\n")
+cat("\n")
+cat("Multivariate test for class 3")
+mvn(subset(data, class == 3, select= -c(class)), mvnTest = "mardia")$multivariateNormality
+cat("\n")
+```
+
+From the above test we can see that class 1 and 2 passes just Mardia Kurtosis test but fails the Mardia Skewness test. While class 3 fails both the test. So we conclude that the classes does not have multivariate distribution. But as we have very less data points, our conclusion are not with confidence.
+
+&nbsp;
+
+###(b)
+```{r echo=FALSE}
+#SOLOTION 2, Part(a)
+library(MASS)
+#FITTING LDA MODEL
+lda.fit = lda(diabetes_train$class~. , diabetes_train)
+
+#predicting training set
+lda.train.pred = predict(lda.fit, diabetes_train)
+lda.train.accuracy = sum(lda.train.pred$class == diabetes_train$class)/length(lda.train.pred$class)
+
+#Predicting test set
+lda.test.pred = predict(lda.fit, diabetes_test)
+lda.test.accuracy = sum(lda.test.pred$class == diabetes_test$class)/length(lda.test.pred$class)
+
+cat("FITTING LDA MODEL:\n")
+cat("Confusion Matrix for test data:")
+table(lda.test.pred$class, diabetes_test$class)
+cat("\n")
+cat("Training Accuracy :", lda.train.accuracy)
+cat("\n")
+cat("Test Accuracy : ", lda.test.accuracy)
+cat("\n")
+```
+
+
+```{r echo=FALSE}
+#FITTING QDA MODEL
+qda.fit = qda(diabetes_train$class~. , diabetes_train)
+
+#predicting training set
+qda.train.pred = predict(qda.fit, diabetes_train)
+qda.train.accuracy = sum(qda.train.pred$class == diabetes_train$class)/length(qda.train.pred$class)
+
+#Predicting test set
+qda.test.pred = predict(qda.fit, diabetes_test)
+qda.test.accuracy = sum(qda.test.pred$class == diabetes_test$class)/length(qda.test.pred$class)
+
+cat("FITTING QDA MODEL:\n")
+cat("QDA Confusion Matrix for test data:")
+table(qda.test.pred$class, diabetes_test$class)
+cat("\n")
+cat("QDA Training Accuracy :", qda.train.accuracy)
+cat("\n")
+cat("QDA Test Accuracy : ", qda.test.accuracy)
+```
+
+###(c)
+```{r echo=FALSE}
+#SOLUTION 2, Part(c)
+test.frame = data.frame(glucose_area=(0.98),insulin_area=(122),SSPG=(544),relative_weight=(186),fasting_plasma_glucose=(184))
+cat("The posterior probabilities for the data is :\n")
+lda.predict = predict(lda.fit, test.frame)
+lda.predict$posterior
+cat("And the class predicted by QDA is : ",lda.predict$class)
+cat("\n")
+cat("The posterior probabilities for the data is :\n")
+qda.predict = predict(qda.fit, test.frame)
+qda.predict$posterior
+cat("And the class predicted by QDA is : ", qda.predict$class)
+```
+
+&nbsp;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

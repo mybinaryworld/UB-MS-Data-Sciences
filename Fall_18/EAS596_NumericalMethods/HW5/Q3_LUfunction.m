@@ -1,0 +1,1 @@
+function [L,U]=Q3_LUfunction(A)  m=size(A,1);  n= size(A,2);  L = eye(m,n);  for i=1:n-1    for j=i+1:n      L(j,i)=A(j,i)/A(i,i);      A(j,i) = 0 ;      for k=i+1:n        A(j,k) = A(j,k) - L(j,i)*A(i,k);      end     end   end  U = A(1:n,1:n);

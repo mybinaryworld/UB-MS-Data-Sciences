@@ -1,0 +1,387 @@
+---
+title: "EAS596, Homework 5"
+author: "Abhishek Kumar, Class#1"
+date: "16/12/2018"
+output:
+  pdf_document: 
+    fig_caption: yes
+    keep_tex: yes
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+
+rm(list = ls())
+library(ElemStatLearn)
+library(randomForest)
+library(ggplot2)
+library(neuralnet)
+library(gam)
+setwd("/Users/abhishekkumar/Documents/MS_UB/Fall_18/ESL506_StatisticalDataMiningI/HW5")
+```
+
+## R Markdown
+## SOLUTION 1
+```{r echo=FALSE, fig.align="center", fig.height=4, fig.pos='h', fig.width=6, message=FALSE, warning=FALSE}
+mydata<-spam
+train=sample(1:nrow(mydata),0.75*nrow(mydata))
+traindata<-mydata[train,]
+testdata <- mydata[-train,]
+
+modelName = c()
+test_error_vector = c()
+
+## TRYING DIFFERENT VALUES OF m(mtry)
+collection = rep(0, 100)
+for(i in seq(1,15,2)){
+  rf.fit = randomForest(spam~.,data = traindata, ntree =100, mtry = i)
+  rf.fit.pred_test <- predict(rf.fit, newdata = testdata, type='class')
+  rf_test_err <- mean(rf.fit.pred_test != testdata$spam)
+  modelName = c(modelName,i)
+  test_error_vector = c(test_error_vector,rf_test_err)
+  collection = cbind(collection, rf.fit$err.rate[,c(1)])
+}
+#PLOTTING TEST ERROR
+plot(modelName,test_error_vector,type='o', xlab = 'No. of input variables (m)', ylab = 'Test Error')
+
+#PLOTTING OUT OF BAG ERROR
+collection_plot = data.frame(collection)[,-c(1)]
+names(collection_plot) = c("mtry_2", "mtry_4","mtry_6","mtry_8","mtry_10")
+collection_plot$NTrees = seq(1, 100)
+ggplot(collection_plot, aes(NTrees)) + 
+  geom_line(aes(y = mtry_2, colour = "m = 2")) + geom_point(aes(y = mtry_2), size = 0.3) + 
+  geom_line(aes(y = mtry_4, colour = "m = 4")) + geom_point(aes(y = mtry_4), size = 0.3) + 
+  geom_line(aes(y = mtry_6, colour = "m = 6")) + geom_point(aes(y = mtry_6), size = 0.3) + 
+  geom_line(aes(y = mtry_8, colour = "m = 8")) + geom_point(aes(y = mtry_8), size = 0.3) + 
+  geom_line(aes(y = mtry_10, colour = "m = 10")) + geom_point(aes(y = mtry_10), size = 0.3) + 
+  ggtitle("Out of Bag Errors") + xlab("No of features") + ylab("OOB Error") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+
+
+## SOLUTION 2
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+set.seed(123)
+data(spam)
+spam$spam <- ifelse(spam$spam == "spam",1,0)
+spam<- spam[1:4600,]
+
+## cv error 
+n <- names(spam)
+f <- as.formula(paste("spam ~", paste(n[!n %in% "spam"], collapse = " + ")))
+crossvalidate <- function(spam, hidden_1)
+{  
+  
+    ### splitting data into train and test set ###
+    data.sample <- sample(1:nrow(spam), round(nrow(spam)*0.75))
+    train.data<- spam[data.sample,]
+    cv.data <- spam[-data.sample,]
+    
+    ## neural network fit ##
+    network <- neuralnet(f, data=train.data, hidden=hidden_1, act.fct = "logistic",err.fct = 'sse', linear.output=FALSE,threshold=0.15)
+    predict.network <- compute(network,cv.data[,1:57])
+    
+    ###### specifying and predicting the class ####
+    predict <- round(predict.network$net.result)
+    error_cv <- mean(predict != cv.data$spam)
+  return(error_cv)
+}
+
+##CREATING TRAINING AND TEST SET
+data.sample <- sample(1:nrow(spam), round(nrow(spam)*0.80))
+train.data<- spam[data.sample,]
+test.data <- spam[-data.sample,]
+
+## selecting the hidden neural networks 
+error_test <- NULL
+error_cv <- NULL
+set.seed(100)
+
+## using cross validation
+for(i in 1:5)
+{
+    error_cv[i] = crossvalidate(spam,hidden=c(i))
+}
+
+## plotting cv errors
+plot(error_cv,main='CV Error vs hidden neurons',xlab="No. of Hidden neurons", ylab='CV Error',type='l4',col='green',lwd=2)
+ 
+min_error_neuron = min(which(min(error_cv) == error_cv))
+network <- neuralnet(f, data=train.data, hidden=c(min_error_neuron), act.fct = "logistic",err.fct = 'sse', linear.output=FALSE, threshold=0.15)
+predict.network <- compute(network, test.data[,1:57])
+
+## Calculating test error
+error_test <- mean(round(predict.network$net.result) != test.data$spam)
+cat("The final test error is : ", error_test)
+```
+As we can see using neural network with one hidden layer and 4 neurons we get a test error of around 5.87% which is quite less than we had obtain using additive models like random forest. But we have to compromise on interpretability of the model as we cannot determine which variables were crucial in determining if the mails were spam. While random forest implementation retains interpretability without compromising much on accuracy. Hence, it is better to use neural networks where we would just need accuracy and we should use other additive models where we don't want to compromise much on interpretability while having good accuracy. 
+
+
+
+
+## SOLUTION 3
+```{r}
+rm(list = ls())
+
+formula = "spam~ A.1"
+for (colname in colnames(spam)){
+  if(colname != "spam" & colname != "A.1" )
+  {
+    formula = paste(formula, colname , sep = " + ")    
+  }
+  
+}
+
+formula = as.formula(formula)
+
+Spam = spam
+
+Spam$spam = as.numeric((Spam$spam))-1
+Spam = as.data.frame(scale(Spam))
+Spam$spam = spam$spam
+Spam$spam = as.numeric((spam$spam))-1
+
+set.seed(12345)
+train = sample(1:nrow(Spam), nrow(Spam)*0.80)
+test = -train
+trainData = Spam[train, ]
+testData = Spam[test, ]
+
+nn <- neuralnet(formula , data = trainData, hidden = 1, act.fct = "logistic",err.fct = 'sse', linear.output = FALSE)
+new.output <- compute(nn, covariate = testData[,1:57])
+predicted_class_new_data <- round(new.output$net.result)
+cat('Test error without any outliers : ', mean(predicted_class_new_data != testData$spam),'\n')
+
+#2.390700435355
+trainDataOutLier = trainData
+trainDataOutLier[1,4] = 300 
+
+nn <- neuralnet(formula , data = trainDataOutLier, hidden = 1, act.fct = "logistic",err.fct = 'sse', linear.output = FALSE)
+new.output <- compute(nn, covariate = testData[,1:57])
+predicted_class_new_data <- round(new.output$net.result)
+cat('Test error when a value at 0.0628 was changed to 300 : ',mean(predicted_class_new_data != testData$spam),'\n')
+
+
+trainDataOutLier[1,4] = 100 
+
+nn <- neuralnet(formula , data = trainDataOutLier, hidden = 1, act.fct = "logistic",err.fct = 'sse', linear.output = FALSE)
+new.output <- compute(nn, covariate = testData[,1:57])
+predicted_class_new_data <- round(new.output$net.result)
+cat('Test error when that outlier is moved to 100 :', mean(predicted_class_new_data != testData$spam),'\n')
+
+
+trainDataOutLier[1,4] = 30 
+
+nn <- neuralnet(formula , data = trainDataOutLier, hidden = 1, act.fct = "logistic",err.fct = 'sse', linear.output = FALSE)
+new.output <- compute(nn, covariate = testData[,1:57])
+predicted_class_new_data <- round(new.output$net.result)
+cat('Test error when that outlier is moved closer to 30: ', mean(predicted_class_new_data != testData$spam),'\n')
+
+
+trainDataOutLier[1,4] = 3
+
+nn <- neuralnet(formula , data = trainDataOutLier, hidden = 1, act.fct = "logistic",err.fct = 'sse', linear.output = FALSE)
+new.output <- compute(nn, covariate = testData[,1:57])
+predicted_class_new_data <- round(new.output$net.result)
+cat('Test error when the outlier is moved to 3: ', mean(predicted_class_new_data != testData$spam),'\n')
+
+
+trainDataOutLier[1,4] = -0.06278457691 
+
+nn <- neuralnet(formula , data = trainDataOutLier, hidden = 1, act.fct = "logistic",err.fct = 'sse', linear.output = FALSE)
+new.output <- compute(nn, covariate = testData[,1:57])
+predicted_class_new_data <- round(new.output$net.result)
+cat('Test error when the outlier is replaced with original value: ', mean(predicted_class_new_data != testData$spam),'\n')
+```
+From the above statements we see that when just a value at 0.0628 is changed to 300, the test error increases from 8.14% to 8.79% and then when it is shrinked back to 100 the test error is 8.03%. The effect of outliers on the model may be more pronounced when we have several outliers. The effect almost vanishes when the outlier is moved to 100 from 300. 
+
+
+
+##################################################################################################
+## SOLUTION 4
+### Part(a)
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+rm (list=ls())
+
+library(ISLR)
+library(e1071)
+
+data(OJ)
+attach(OJ)
+
+test_indis <- sample(1:nrow(OJ), 0.35*nrow(OJ))
+test_oj <- OJ[test_indis,]
+train_oj <- OJ[-test_indis,]
+
+test_error_linear <- c()
+train_error_linear <- c()
+
+####  a  ####
+#######  SVM with a Linear Kernel  ########
+for (i in c(0.01,0.1, 1, 5, 10)){
+  
+  linear_oj_svm <- tune(svm, Purchase ~ .,data = train_oj, kernel = "linear",ranges = list(cost = i))
+  best_model_oj <- linear_oj_svm$best.model
+  
+  
+  ### predict test data ###
+  y_hat <- predict(best_model_oj, newdata = test_oj)
+  y_true <- test_oj$Purchase
+  
+  test_err <- length(which(y_true != y_hat))/length(y_true)
+  test_error_linear<-c(test_error_linear,test_err)
+  
+  y_hat <- predict(best_model_oj, newdata = train_oj)
+  y_true <- train_oj$Purchase
+  
+  train_err <- length(which(y_true != y_hat))/length(y_true)
+  train_error_linear<-c(train_error_linear,train_err)
+}
+cat('LINEAR KERNEL ERROR, INCREASING ORDER OF COST \n')
+cat('Train error for linear kernal :', train_error_linear,'\n')
+cat('Test error for linear kernal :', test_error_linear,'\n')
+
+
+### Plotting ###
+
+upper.lr = max(test_error_linear, train_error_linear)
+lower.lr = min(test_error_linear, train_error_linear)
+
+
+plot(train_error_linear, type = "o", lty = 2, col = "black", ylim = c(lower.lr -1, upper.lr +1) , xlab = "cost", ylab = "error", main = "Test and Training Errors, linear kernel")
+lines(test_error_linear, type = "o", lty = 1, col = "red")
+legend("topright", c("training", "test"), lty = c(2,1), col = c("black","red"))
+
+
+##########  SVM with a Radial Kernel  ############
+
+train_error_radial <- c()
+test_error_radial<- c()
+
+for (i in c(0.01,0.1, 1, 5, 10)){
+  radial_oj_svm <- tune(svm, Purchase ~ .,data = train_oj, kernel = "radial",ranges = list(cost = i))
+  
+  best_model_oj <- radial_oj_svm$best.model
+  best_model_oj
+  
+  ### predict test data ###
+  
+  y_hat <- predict(best_model_oj, newdata = test_oj)
+  y_true <- test_oj$Purchase
+  
+  test_err <- length(which(y_true != y_hat))/length(y_true)
+  test_error_radial<-c(test_error_radial,test_err)
+  
+  y_hat <- predict(best_model_oj, newdata = train_oj)
+  y_true <- train_oj$Purchase
+  
+  train_err <- length(which(y_true != y_hat))/length(y_true)
+  train_error_radial<-c(train_error_radial,train_err)
+  
+}
+cat('RADIAL KERNEL ERROR, INCREASING ORDER OF COST \n')
+cat('Train error for radial kernal :', train_error_radial,'\n')
+cat('Test error for radial kernal :', test_error_radial,'\n')
+
+### Plotting ###
+
+upper.lr = max(test_error_radial, train_error_radial)
+lower.lr = min(test_error_radial, train_error_radial)
+
+
+plot(train_error_radial, type = "o", lty = 2, col = "blue", ylim = c(lower.lr -1, upper.lr +1) , xlab = "cost", ylab = "error", main = "Test and Training Errors for Radial Kernel")
+lines(test_error_radial, type = "o", lty = 1, col = "red")
+legend("topright", c("training", "test"), lty = c(2,1), col = c("blue","red"))
+
+
+##########  SVM with a Polynimal Kernel  ############
+
+
+train_error_poly <- c()
+test_error_poly<- c()
+
+for (i in c(0.01,0.1, 1, 5, 10)){
+  oj.poly.svm <- tune(svm, Purchase ~ .,data = train_oj, degree = 2, kernel = "polynomial",ranges = list(cost = i))
+  
+  best_model_oj <- oj.poly.svm$best.model
+  best_model_oj
+  
+  ### predict test data ###
+  
+  y_hat <- predict(best_model_oj, newdata = test_oj)
+  y_true <- test_oj$Purchase
+  
+  test_err <- length(which(y_true != y_hat))/length(y_true)
+  test_error_poly<-c(test_error_poly,test_err)
+  
+  y_hat <- predict(best_model_oj, newdata = train_oj)
+  y_true <- train_oj$Purchase
+  
+  train_err <- length(which(y_true != y_hat))/length(y_true)
+  train_error_poly<-c(train_error_poly,train_err)
+  
+}
+cat('POLYNIMIAL KERNEL ERROR, INCREASING ORDER OF COST \n')
+cat('Train error for polynomial kernal :', train_error_poly,'\n')
+cat('Test error for polynomial kernal :', test_error_poly,'\n')
+
+### Plotting ###
+
+upper.lr = max(test_error_poly, train_error_poly)
+lower.lr = min(test_error_poly, train_error_poly)
+
+
+plot(train_error_poly, type = "o", lty = 2, col = "orange", ylim = c(lower.lr -1, upper.lr +1) , xlab = "cost", ylab = "error", main = "Test and Training Errors for polynomial Kernel")
+lines(test_error_poly, type = "o", lty = 1, col = "blue")
+legend("topright", c("training", "test"), lty = c(2,1), col = c("orange","blue"))
+```
+The optimal cost for all the SVM kernel is at index 5 corresponding to cost 10. But if we look at the plots we see that SVM with linear kernel has minimum error even at low margin cost(index 1, cost 0.01) while SVM with linear and polynomial kernel(order 2) has more error at margin cost of 0.01 but they improvise when the cost is increased to 0.1 and all the three kernels continue having almost the same error if we furthur incerease the cost. 
+
+
+
+##SOLUTION 5
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.align="center", fig.height=4, fig.pos='h', fig.width=6}
+###Q 5 ##################
+#####################################
+
+library(uskewFactors)
+#Plotting the diaganosis plots
+#install.packages("devtools")
+library(devtools)
+#install_github("vqv/ggbiplot")
+library(ggbiplot)
+
+data("banknote")
+
+bank_gen=subset(banknote,banknote$Y==0)
+bank_fake=subset(banknote,banknote$Y==1)
+
+genuine_PCA=prcomp(bank_gen[,c(2:7)],center = TRUE)
+fake_PCA=prcomp(bank_fake[,c(2:7)],center = TRUE)
+combined_PCA=prcomp(banknote[,c(2:7)],center = TRUE)
+
+cat('FOR GENUINE NOTES : ')
+print(summary(genuine_PCA)) #PC till the 4th one accounts for 92% variance
+cat('FOR FAKE NOTES : ')
+print(summary(fake_PCA)) #PC till the 3rd one accounts for 90%
+cat('FOR BOTH TYPE NOTES : ')
+print(summary(combined_PCA)) #PC till the 3rd one accounts for 93%
+
+
+#selecting PCs using variance dip
+plot(genuine_PCA,type = "l", main = "Genuine PCA")
+plot(fake_PCA, type = "l", main = "Fake PCA")
+plot(combined_PCA, type = "l", main = "Combined PCA")
+
+#Analyzing loadings
+#print(genuine_PCA)
+#print(fake_PCA)
+#print(combined_PCA)
+```
+
+From the three plots above we can infer that the Genuine notes have more number of important features as even the 5th component explains 10% of the variance in data while for Fake notes we can see that only two components are dominant. For the genuine notes we select 1st 4 principle components as it explains almost 92% of variance in the data. And for fake notes we only select 1st 3 principle components as it accounts for 90% of variance in the data. This also explains that while counterfeiting people are able to copy only some important features and not all of them. On the combined PCA plot also we see that only only two principle component are important and we can see this as the reason why it is difficult to distinguish between genuine and fake notes.
